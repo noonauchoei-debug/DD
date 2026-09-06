@@ -1,0 +1,6 @@
+{
+  "name": "DD Telecom",
+  "description": "Mobile telecom shop inventory, sales tracking, and bill generator for DD Telecom.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
