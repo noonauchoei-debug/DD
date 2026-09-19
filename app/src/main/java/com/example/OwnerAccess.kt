@@ -11,17 +11,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddBusiness
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.ToggleOff
 import androidx.compose.material.icons.filled.ToggleOn
 import androidx.compose.material3.AlertDialog
@@ -38,7 +41,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -46,13 +48,36 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import java.util.UUID
 
 private const val ACCESS_FILE = "dd_talacom_access.txt"
 
-private data class AccessState(
+enum class AppRole(val label: String) {
+    OWNER("เจ้าของระบบ"),
+    BRANCH_MANAGER("ผู้จัดการสาขา"),
+    EMPLOYEE("พนักงาน"),
+    PENDING("รออนุมัติ")
+}
+
+data class BranchProfile(
+    val branchId: String = "branch-main",
+    val branchName: String = "สาขาหลัก",
+    val isActive: Boolean = true,
+    val ownerApproved: Boolean = true,
+    val role: AppRole = AppRole.OWNER
+)
+
+data class PendingUserRequest(
+    val id: String,
+    val email: String,
+    val branchId: String,
+    val branchName: String,
+    val requestedRole: AppRole,
+    val requestedAt: Long = System.currentTimeMillis()
+)
+
+data class AccessState(
     val approved: Boolean,
     val email: String,
     val role: AppRole
@@ -80,7 +105,6 @@ private class OwnerAccessStore(private val context: Context) {
     fun clear() = context.deleteFile(ACCESS_FILE)
 }
 
-/** First-run local gate. Replace the demo approval action with Firebase/Auth backend approval before release. */
 @Composable
 fun OwnerManagedApp(activity: Activity) {
     val store = remember { OwnerAccessStore(activity) }
@@ -131,10 +155,17 @@ private fun LoginScreen(onRequestAccess: (String) -> Unit) {
             )
             Spacer(Modifier.height(12.dp))
             Button(
-                onClick = { if (email.contains("@")) { onRequestAccess(email.trim()); requested = true } },
+                onClick = {
+                    if (email.contains("@")) {
+                        onRequestAccess(email.trim())
+                        requested = true
+                    }
+                },
                 enabled = email.contains("@"),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("ส่งคำขออนุญาตใช้งาน") }
+            ) {
+                Text("ส่งคำขออนุญาตใช้งาน")
+            }
             if (requested) {
                 Spacer(Modifier.height(12.dp))
                 Text("ส่งคำขอแล้ว กรุณารอเจ้าของระบบอนุมัติ", color = MaterialTheme.colorScheme.primary)
@@ -149,9 +180,30 @@ private fun LoginScreen(onRequestAccess: (String) -> Unit) {
 private fun OwnerDashboard(email: String, onLogout: () -> Unit, onOpenApp: () -> Unit) {
     val branches = remember {
         mutableStateListOf(
-            BranchProfile("branch-main", "สาขาหลัก", true, true, AppRole.OWNER)
+            BranchProfile("branch-main", "สาขาหลัก", true, true, AppRole.OWNER),
+            BranchProfile("branch-chiangmai", "สาขาเชียงใหม่", true, true, AppRole.BRANCH_MANAGER)
         )
     }
+
+    val pendingRequests = remember {
+        mutableStateListOf(
+            PendingUserRequest(
+                id = "req-001",
+                email = "manager@ddtalacom.com",
+                branchId = "branch-main",
+                branchName = "สาขาหลัก",
+                requestedRole = AppRole.BRANCH_MANAGER
+            ),
+            PendingUserRequest(
+                id = "req-002",
+                email = "cashier@ddtalacom.com",
+                branchId = "branch-chiangmai",
+                branchName = "สาขาเชียงใหม่",
+                requestedRole = AppRole.EMPLOYEE
+            )
+        )
+    }
+
     var showAddBranch by remember { mutableStateOf(false) }
     var branchName by remember { mutableStateOf("") }
 
@@ -159,7 +211,11 @@ private fun OwnerDashboard(email: String, onLogout: () -> Unit, onOpenApp: () ->
         topBar = {
             TopAppBar(
                 title = { Text("DD Talacom • Owner Dashboard") },
-                actions = { IconButton(onClick = onLogout) { Icon(Icons.Filled.Logout, "ออกจากระบบ") } }
+                actions = {
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.Filled.Logout, contentDescription = "ออกจากระบบ")
+                    }
+                }
             )
         }
     ) { padding ->
@@ -169,7 +225,11 @@ private fun OwnerDashboard(email: String, onLogout: () -> Unit, onOpenApp: () ->
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
                     Column(Modifier.padding(16.dp)) {
                         Text("ยินดีต้อนรับเจ้าของระบบ", style = MaterialTheme.typography.titleLarge)
                         Text(email)
@@ -182,8 +242,13 @@ private fun OwnerDashboard(email: String, onLogout: () -> Unit, onOpenApp: () ->
                     }
                 }
             }
+
             item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text("จัดการสาขา (${branches.size})", style = MaterialTheme.typography.titleLarge)
                     OutlinedButton(onClick = { showAddBranch = true }) {
                         Icon(Icons.Filled.AddBusiness, null)
@@ -191,15 +256,43 @@ private fun OwnerDashboard(email: String, onLogout: () -> Unit, onOpenApp: () ->
                     }
                 }
             }
+
             items(branches, key = { it.branchId }) { branch ->
                 BranchCard(
                     branch = branch,
                     canDelete = branches.size > 1,
                     onToggle = {
-                        val i = branches.indexOfFirst { it.branchId == branch.branchId }
-                        if (i >= 0) branches[i] = branch.copy(isActive = !branch.isActive)
+                        val index = branches.indexOfFirst { it.branchId == branch.branchId }
+                        if (index >= 0) {
+                            branches[index] = branch.copy(isActive = !branch.isActive)
+                        }
                     },
-                    onDelete = { branches.removeAll { it.branchId == branch.branchId } }
+                    onDelete = {
+                        branches.removeAll { it.branchId == branch.branchId }
+                    }
+                )
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("คำขออนุมัติผู้ใช้ (${pendingRequests.size})", style = MaterialTheme.typography.titleLarge)
+                    Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+
+            items(pendingRequests, key = { it.id }) { request ->
+                UserApprovalCard(
+                    request = request,
+                    onApprove = {
+                        pendingRequests.removeAll { it.id == request.id }
+                    },
+                    onReject = {
+                        pendingRequests.removeAll { it.id == request.id }
+                    }
                 )
             }
         }
@@ -209,36 +302,111 @@ private fun OwnerDashboard(email: String, onLogout: () -> Unit, onOpenApp: () ->
         AlertDialog(
             onDismissRequest = { showAddBranch = false },
             title = { Text("เพิ่มสาขาใหม่") },
-            text = { OutlinedTextField(value = branchName, onValueChange = { branchName = it }, label = { Text("ชื่อสาขา") }, singleLine = true) },
+            text = {
+                OutlinedTextField(
+                    value = branchName,
+                    onValueChange = { branchName = it },
+                    label = { Text("ชื่อสาขา") },
+                    singleLine = true
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     if (branchName.isNotBlank()) {
-                        branches.add(BranchProfile("branch-${UUID.randomUUID()}", branchName.trim(), true, true, AppRole.BRANCH_MANAGER))
+                        branches.add(
+                            BranchProfile(
+                                branchId = "branch-${UUID.randomUUID()}",
+                                branchName = branchName.trim(),
+                                isActive = true,
+                                ownerApproved = true,
+                                role = AppRole.BRANCH_MANAGER
+                            )
+                        )
                         branchName = ""
                         showAddBranch = false
                     }
-                }) { Text("บันทึก") }
+                }) {
+                    Text("บันทึก")
+                }
             },
-            dismissButton = { TextButton(onClick = { showAddBranch = false }) { Text("ยกเลิก") } }
+            dismissButton = {
+                TextButton(onClick = { showAddBranch = false }) {
+                    Text("ยกเลิก")
+                }
+            }
         )
     }
 }
 
 @Composable
-private fun BranchCard(branch: BranchProfile, canDelete: Boolean, onToggle: () -> Unit, onDelete: () -> Unit) {
+private fun BranchCard(
+    branch: BranchProfile,
+    canDelete: Boolean,
+    onToggle: () -> Unit,
+    onDelete: () -> Unit
+) {
     Card {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.ManageAccounts, null, tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Filled.Store, null, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
                     Text(branch.branchName, style = MaterialTheme.typography.titleMedium)
                     Text("ID: ${branch.branchId}", style = MaterialTheme.typography.bodySmall)
-                    Text(if (branch.isActive) "เปิดใช้งาน" else "ปิดใช้งาน", color = if (branch.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                    Text(
+                        if (branch.isActive) "เปิดใช้งาน" else "ปิดใช้งาน",
+                        color = if (branch.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
                 }
-                IconButton(onClick = onToggle) { Icon(if (branch.isActive) Icons.Filled.ToggleOn else Icons.Filled.ToggleOff, "สลับสถานะ") }
-                if (canDelete) IconButton(onClick = onDelete) { Icon(Icons.Filled.DeleteOutline, "ลบสาขา") }
+                IconButton(onClick = onToggle) {
+                    Icon(
+                        if (branch.isActive) Icons.Filled.ToggleOn else Icons.Filled.ToggleOff,
+                        contentDescription = "สลับสถานะ"
+                    )
+                }
+                if (canDelete) {
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Filled.DeleteOutline, contentDescription = "ลบสาขา")
+                    }
+                }
             }
-            Text("ผู้จัดการ: ${branch.role.label} • อนุมัติแล้ว", style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                Spacer(Modifier.width(8.dp))
+                Text("ผู้จัดการ: ${branch.role.label} • ${if (branch.ownerApproved) "อนุมัติแล้ว" else "รออนุมัติ"}")
+            }
+        }
+    }
+}
+
+@Composable
+private fun UserApprovalCard(
+    request: PendingUserRequest,
+    onApprove: () -> Unit,
+    onReject: () -> Unit
+) {
+    Card {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.ManageAccounts, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(request.email, style = MaterialTheme.typography.titleMedium)
+                    Text("สาขา: ${request.branchName} • ${request.requestedRole.label}")
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onReject) { Text("ปฏิเสธ") }
+                Spacer(Modifier.width(8.dp))
+                Button(onClick = onApprove) {
+                    Icon(Icons.Filled.CheckCircle, null)
+                    Text("อนุมัติ")
+                }
+            }
         }
     }
 }
