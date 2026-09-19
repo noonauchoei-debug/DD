@@ -77,6 +77,13 @@ data class PendingUserRequest(
     val requestedAt: Long = System.currentTimeMillis()
 )
 
+data class ApprovedUser(
+    val email: String,
+    val branchId: String,
+    val branchName: String,
+    val role: AppRole
+)
+
 data class AccessState(
     val approved: Boolean,
     val email: String,
@@ -204,6 +211,14 @@ private fun OwnerDashboard(email: String, onLogout: () -> Unit, onOpenApp: () ->
         )
     }
 
+    val approvedUsers = remember {
+        mutableStateListOf(
+            ApprovedUser("owner@ddtalacom.com", "branch-main", "สาขาหลัก", AppRole.OWNER),
+            ApprovedUser("manager@ddtalacom.com", "branch-main", "สาขาหลัก", AppRole.BRANCH_MANAGER),
+            ApprovedUser("cashier@ddtalacom.com", "branch-chiangmai", "สาขาเชียงใหม่", AppRole.EMPLOYEE)
+        )
+    }
+
     var showAddBranch by remember { mutableStateOf(false) }
     var branchName by remember { mutableStateOf("") }
 
@@ -288,12 +303,35 @@ private fun OwnerDashboard(email: String, onLogout: () -> Unit, onOpenApp: () ->
                 UserApprovalCard(
                     request = request,
                     onApprove = {
+                        approvedUsers.add(
+                            ApprovedUser(
+                                email = request.email,
+                                branchId = request.branchId,
+                                branchName = request.branchName,
+                                role = request.requestedRole
+                            )
+                        )
                         pendingRequests.removeAll { it.id == request.id }
                     },
                     onReject = {
                         pendingRequests.removeAll { it.id == request.id }
                     }
                 )
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("ผู้ใช้งานที่อนุมัติแล้ว (${approvedUsers.size})", style = MaterialTheme.typography.titleLarge)
+                    Icon(Icons.Filled.ManageAccounts, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+
+            items(approvedUsers, key = { it.email + it.branchId }) { user ->
+                ApprovedUserCard(user = user)
             }
         }
     }
@@ -405,6 +443,22 @@ private fun UserApprovalCard(
                 Button(onClick = onApprove) {
                     Icon(Icons.Filled.CheckCircle, null)
                     Text("อนุมัติ")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ApprovedUserCard(user: ApprovedUser) {
+    Card {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(user.email, style = MaterialTheme.typography.titleMedium)
+                    Text("${user.branchName} • ${user.role.label}")
                 }
             }
         }
