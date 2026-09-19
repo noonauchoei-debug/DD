@@ -2,12 +2,37 @@ package com.example
 
 import androidx.compose.ui.graphics.Color
 
+// ---------------- APP SYSTEM / MULTI-BRANCH SETTINGS ----------------
+enum class AppRole(val label: String) {
+    OWNER("เจ้าของระบบ"),
+    BRANCH_MANAGER("ผู้จัดการสาขา"),
+    EMPLOYEE("พนักงาน"),
+    PENDING("รออนุมัติ")
+}
+
+data class BranchProfile(
+    val branchId: String = "branch-main",
+    val branchName: String = "สาขาหลัก",
+    val isActive: Boolean = true,
+    val ownerApproved: Boolean = true,
+    val role: AppRole = AppRole.OWNER
+)
+
+data class AppSession(
+    val appName: String = "DD Talacom",
+    val branchId: String = "branch-main",
+    val branchName: String = "สาขาหลัก",
+    val role: AppRole = AppRole.OWNER,
+    val ownerApproved: Boolean = true,
+    val multiBranchEnabled: Boolean = true
+)
+
 // ---------------- STORE PROFILE ----------------
 data class StoreProfile(
-    val shopName: String = "ดีดี เทเลคอม (DD Telecom)",
+    val shopName: String = "DD Talacom",
     val address: String = "123/45 ศูนย์การค้าไอที ถ.สุขุมวิท กรุงเทพฯ 10110",
     val phone: String = "081-234-5678, 089-987-6543",
-    val lineId: String = "@ddtelecom",
+    val lineId: String = "@ddtalacom",
     val taxId: String = "0105566012345",
     val promptPay: String = "0812345678",
     val footerMessage: String = "สินค้ารับประกันคุณภาพ ยินดีให้บริการ ขอบคุณครับ"
